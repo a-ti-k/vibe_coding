@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Salary Gayeb - Daily Budget Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#0b0b12;--card:#fff;--ink:#12121a;--mut:#6b6b7b;--acc:#b8ff3d;--red:#ff4d5e;--grn:#12b76a;--line:#ececf2;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;margin:0}
+body{background:#05050a;color:#fff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center}
+#app{width:100%;max-width:430px;min-height:100vh;background:var(--bg);position:relative;padding:18px 16px 96px}
+h1{font-size:26px;letter-spacing:-.5px}h2{font-size:18px}
+.mut{color:#9a9ab0;font-size:13px}.card{background:var(--card);color:var(--ink);border-radius:22px;padding:18px;margin:14px 0}
+.card .mut{color:var(--mut)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.btn{background:var(--acc);color:#111;border:0;border-radius:16px;padding:14px 18px;font-weight:800;font-size:15px;width:100%;cursor:pointer}
+.btn.ghost{background:#1c1c28;color:#fff}.btn.sm{width:auto;padding:9px 14px;font-size:13px;border-radius:12px}
+input,textarea,select{width:100%;background:#1c1c28;border:1px solid #2c2c3d;color:#fff;border-radius:14px;padding:14px;font-size:18px;font-weight:700;margin:6px 0 12px;font-family:inherit}
+textarea{font-size:14px;font-weight:500;min-height:70px}
+.tag{font-size:10px;font-weight:800;padding:3px 8px;border-radius:99px;background:#ffe3e6;color:#d92d3f;margin-left:6px;cursor:pointer}
+.tag.need{background:#dcfce9;color:#0a8a4f}
+.tx{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.tx:last-child{border:0}
+.ic{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:19px;background:#f2f2f7;flex:none}
+.amt{font-weight:800;margin-left:auto;white-space:nowrap}
+nav{position:fixed;bottom:0;width:100%;max-width:430px;background:#12121c;display:flex;padding:10px 6px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid #23233a;z-index:5}
+nav button{flex:1;background:none;border:0;color:#7c7c92;font-size:11px;font-weight:700;cursor:pointer}
+nav button span{display:block;font-size:20px}nav button.on{color:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.chip{background:#1c1c28;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:600}
+.day{font-size:12px;font-weight:800;color:#9a9ab0;margin:18px 0 -6px;letter-spacing:.5px}
+#toast{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translate(-50%,-140%);width:min(398px,94vw);background:#fff;color:#111;border-radius:18px;padding:14px 16px;z-index:9;transition:.4s;box-shadow:0 10px 40px #000a;font-size:14px}
+#toast.show{transform:translate(-50%,0)}#toast b{display:block;font-size:12px;color:#6b6b7b;margin-bottom:3px}
+.bar{height:10px;border-radius:9px;background:#e8e8f0;overflow:hidden;display:flex}
+.big{font-size:34px;font-weight:900;letter-spacing:-1px}
+.lg{display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0}.lg i{width:10px;height:10px;border-radius:3px}
+</style></head><body><div id="app"></div><div id="toast"></div>
+<script>
+const CAT={Food:'#ff8a3d',Grocery:'#12b76a',Shopping:'#7c5cff',Subscription:'#ff4d9d',Transport:'#29b6f6',Bills:'#ffc107'};
+const MER={Foodpanda:{c:'Food',i:'🛵'},KFC:{c:'Food',i:'🍗'},HungryNaki:{c:'Food',i:'🍱'},Chaldal:{c:'Grocery',i:'🧺'},Shwapno:{c:'Grocery',i:'🛒'},Agora:{c:'Grocery',i:'🛍️'},
+Daraz:{c:'Shopping',i:'📦'},Aarong:{c:'Shopping',i:'👘'},Pickaboo:{c:'Shopping',i:'📱'},Startech:{c:'Shopping',i:'💻'},Netflix:{c:'Subscription',i:'🎬'},Spotify:{c:'Subscription',i:'🎧'},
+Pathao:{c:'Transport',i:'🏍️'},Uber:{c:'Transport',i:'🚕'},Obhai:{c:'Transport',i:'🚗'},Shohoz:{c:'Transport',i:'🚆'},Robi:{c:'Bills',i:'📶'},Grameenphone:{c:'Bills',i:'📱'},Banglalink:{c:'Bills',i:'📞'},DESCO:{c:'Bills',i:'💡'},Titas:{c:'Bills',i:'🔥'}};
+const fmt=n=>'৳'+Math.round(Math.abs(n)).toLocaleString('en-BD');
+// ---- Replace this with a real SMS reader later ----
+function parseSmsForAmount(message){
+  const am=message.match(/(?:tk\.?|bdt|৳)\s*([\d,]+(?:\.\d+)?)/i);if(!am)return null;
+  const amount=parseFloat(am[1].replace(/,/g,''));
+  const type=/received|cash ?in|credited|refund|deposit/i.test(message)&&!/paid|sent|debited|cash ?out|payment|purchase/i.test(message)?'credit':'debit';
+  const wallet=['bKash','Nagad','Rocket','Upay','DBBL','BRAC Bank','City Bank','EBL','Islami Bank'].find(w=>new RegExp(w,'i').test(message))||null;
+  let merchant=Object.keys(MER).find(k=>new RegExp(k,'i').test(message));
+  if(!merchant){const t=message.match(/(?:to|at)\s+([A-Za-z0-9][\w ]{2,20}?)(?:\s+(?:on|via|ref|trxid|fee|balance)|[.,]|$)/i);merchant=t?t[1].trim():'Unknown'}
+  return{amount,type,wallet,merchant,category:(MER[merchant]||{}).c||'Shopping'};
+}
+const ROASTS={over:[
+"Congratulations, you earned {e} and spent {s}. You borrowed {d} from your future self. Future you is NOT happy. 😭",
+"Already {s} gone? Your budget was {e}. That is {d} extra. Let your salary breathe!",
+"Plot twist: you are {d} over budget. Today's MVP? Your bKash app. 💸",
+"You: 'Just one order.' Your wallet: '{s} gone.' The budget was only {e}.",
+"Salary gayeb alert! You overspent by {d} today. Tomorrow: home food and a long walk.",
+"{d} over budget. Your Daraz cart worked harder than you today. 🛒",
+"Today's report card: earned {e}, spent {s}. Grade: Where Did It All Go?",
+"Future you just texted: 'Please stop. You added {d} to my tab.'",
+"Big spender energy: {d} over budget. Who is paying the rent, a billionaire? 😅",
+"Budget {e}, spent {s}. Your math is fine, your willpower just needs a gym.",
+"Impulse buy detected 🚨 {d} over. Leave the wishlist as a wishlist next time.",
+"Month-end is far and you are already {d} over. Time to master instant noodles.",
+"Foodpanda delivers in 30 minutes. Your budget vanished in 30 seconds. ({d} over)",
+"{s} spent vs {e} earned. Even Excel is crying. 📉",
+"Tomorrow's plan: a ৳0 spend challenge to win back today's {d}. You've got this! 💪"],
+under:[
+"Look at you! {s} spent out of {e}. You saved {d}. Adulting unlocked. 🎉",
+"Well done! You saved {d} today. Future you is sending a thank-you.",
+"Under budget by {d}. Your salary is proud of you today. 💚",
+"Only {s} spent today. {d} saved. You have earned a cup of tea!",
+"Discipline level: Tamim on a good day. You saved {d} today. 🏏"]};
+// ---- storage ----
+let S=null;const KEY='salary_gayeb_bd_v1';
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const sod=t=>{const d=new Date(t);d.setHours(0,0,0,0);return+d};
+const budget=()=>Math.round(S.salary/30);
+const dayTx=o=>S.tx.filter(x=>sod(x.t)===sod(Date.now()-o*864e5));
+const sum=a=>a.reduce((s,x)=>s+x.a,0);
+const tm=t=>new Date(t).toLocaleTimeString('en-BD',{hour:'numeric',minute:'2-digit',hour12:true});
+let tab='today',step=0;
+function toast(h,b){const el=document.getElementById('toast');el.innerHTML='<b>🔔 SALARY GAYEB • now</b>'+h+(b?'<br><span class="mut">'+b+'</span>':'');el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),6500)}
+function roast(o){const sp=sum(dayTx(o)),b=budget(),over=sp>b,list=over?ROASTS.over:ROASTS.under;
+  const msg=list[(S.tx.length+o)%list.length];
+  return msg.replace(/{e}/g,fmt(b)).replace(/{s}/g,fmt(sp)).replace(/{d}/g,fmt(sp-b))}
+function breakdown(txs){const t=sum(txs)||1,m={};txs.forEach(x=>m[x.c]=(m[x.c]||0)+x.a);
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+' '+Math.round(v/t*100)+'%').join(', ')}
+function shame(){toast(roast(0),'Breakdown: '+breakdown(dayTx(0)))}
+function txRow(x,tag){const m=MER[x.m]||{i:'💳'};return `<div class="tx"><div class="ic">${m.i}</div><div><div style="font-weight:700">${x.m}${x.imp?`<span class="tag" onclick="flip(${x.id})">IMPULSE BUY</span>`:(tag?`<span class="tag need" onclick="flip(${x.id})">NEED</span>`:'')}</div><div class="mut">${tm(x.t)} · ${x.c}${x.u?' · '+x.u:''}</div></div><div class="amt">-${fmt(x.a)}</div></div>`}
+let adding=false;
+function FORM(){return `<div class="card" style="background:#14141f;color:#fff"><div class="mut">Amount (৳)</div><input id="ma" type="number" inputmode="numeric"><div class="mut">Merchant</div><input id="mm" list="ml" placeholder="Foodpanda, Pathao, Daraz..."><datalist id="ml">${Object.keys(MER).map(k=>`<option>${k}`).join('')}</datalist><div class="mut">Category (if merchant is not recognised)</div><select id="mc">${Object.keys(CAT).map(k=>`<option>${k}`).join('')}</select><button class="btn" onclick="addManual()">Add spend</button></div>`}
+function addManual(){const a=+document.getElementById('ma').value,m=(document.getElementById('mm').value||'Other').trim(),cs=document.getElementById('mc').value;if(!a)return toast('Enter an amount 🙂');
+  const k=Object.keys(MER).find(x=>x.toLowerCase()===m.toLowerCase()),c=k?MER[k].c:cs;S.tx.push({id:Date.now(),t:Date.now(),m:k||m,a,c,u:null,imp:c==='Shopping'&&a>=2000});adding=false;save();
+  const sp=sum(dayTx(0)),b=budget();toast(sp>b?`Already ${fmt(sp)} spent? You are ${fmt(sp-b)} over budget.`:`${k||m} -${fmt(a)} added. ${fmt(b-sp)} still left 👌`);render()}
+function flip(id){const x=S.tx.find(y=>y.id===id);x.imp=!x.imp;save();render()}
+function addSms(msg){const p=parseSmsForAmount(msg);
+  if(!p)return toast('No amount found 🤔','The SMS needs a Tk or ৳ amount.');
+  if(p.type==='credit')return toast('Credit detected: '+fmt(p.amount)+' 🎉','Credits are not counted in your daily budget.');
+  const mm=MER[p.merchant]||{};S.tx.push({id:Date.now(),t:Date.now(),m:p.merchant,a:p.amount,c:p.category,u:p.wallet,imp:p.category==='Shopping'&&p.amount>=2000});save();
+  const sp=sum(dayTx(0)),b=budget();
+  toast(sp>b?`Already ${fmt(sp)} spent? ${p.merchant} just took ${fmt(p.amount)}.`:`${p.merchant} -${fmt(p.amount)} noted. ${fmt(b-sp)} still left today 👌`,'Auto-detected from SMS');render()}
+function ring(sp,b){const R=84,C=2*Math.PI*R,p=Math.min(sp/b,1),over=sp>b,col=over?'var(--red)':'var(--acc)';
+  return `<svg viewBox="0 0 200 200" width="220" style="display:block;margin:6px auto"><circle cx="100" cy="100" r="${R}" fill="none" stroke="#e8e8f0" stroke-width="16"/><circle cx="100" cy="100" r="${R}" fill="none" stroke="${over?'#ff4d5e':'#12b76a'}" stroke-width="16" stroke-linecap="round" stroke-dasharray="${C*p} ${C}" transform="rotate(-90 100 100)"/><text x="100" y="92" text-anchor="middle" font-size="12" fill="#6b6b7b" font-weight="700">${over?'OVER BY':'LEFT TODAY'}</text><text x="100" y="122" text-anchor="middle" font-size="30" font-weight="900" fill="${over?'#ff4d5e':'#12121a'}">${fmt(b-sp)}</text><text x="100" y="142" text-anchor="middle" font-size="11" fill="#6b6b7b">${fmt(sp)} of ${fmt(b)}</text></svg>`}
+function vToday(){const sp=sum(dayTx(0)),b=budget(),h=new Date().getHours(),g=h<12?'Good Morning':h<17?'Good Afternoon':'Good Evening',over=sp>b;
+  const tx=dayTx(0).sort((a,b)=>b.t-a.t);
+  return `<div class="row"><div><div class="mut">Salary Gayeb 💸</div><h1>${g} ${S.name}!</h1></div><div style="font-size:30px">🫠</div></div>
+  <div class="card"><div class="mut">Today's Budget</div><div class="big">${fmt(b)}</div><div class="mut">${fmt(S.salary)} ÷ 30 days</div>${ring(sp,b)}
+  <div style="text-align:center;font-weight:800;color:${over?'var(--red)':'var(--grn)'}">${over?`You spent ${fmt(sp)} today. You are ${fmt(sp-b)} OVER budget 😬`:`You spent ${fmt(sp)}. ${fmt(b-sp)} still left 👌`}</div></div>
+  <div class="row"><h2>Live transactions</h2><button class="btn ghost sm" onclick="adding=!adding;render()">＋ Add spend</button></div>
+  ${adding?FORM():''}<div class="card" style="margin-top:10px">${tx.length?tx.map(x=>txRow(x)).join(''):'<div class="mut">৳0 spent so far today. Add a spend or paste a bank SMS.</div>'}</div>
+  <button class="btn" onclick="shame()">🔔 Preview 9 PM roast report</button>`}
+function vTx(){const days=[];for(let o=0;o<60;o++)days.push(o);
+  return `<h1>Transactions</h1><div class="mut">Tap the tag to flip Need ⇄ Impulse</div>${S.tx.length?'':'<div class="card"><div class="mut">No transactions yet. Add a spend on the Today tab or paste an SMS below.</div></div>'}
+  <div class="card" style="background:#14141f;color:#fff"><div class="mut">Paste a bank / bKash / Nagad SMS to test parseSmsForAmount()</div><textarea id="sms" placeholder="bKash: You have paid Tk 500 to Foodpanda. TrxID 9A1B2C"></textarea><button class="btn" onclick="addSms(document.getElementById('sms').value)">Parse & add</button></div>`+
+  days.map(o=>{const t=dayTx(o).sort((a,b)=>b.t-a.t);if(!t.length)return'';const d=new Date(Date.now()-o*864e5).toLocaleDateString('en-BD',{weekday:'short',day:'numeric',month:'short'});
+    return `<div class="day">${o?d.toUpperCase():'TODAY'} · ${fmt(sum(t))}</div><div class="card">${t.map(x=>txRow(x,true)).join('')}</div>`}).join('')}
+function vAn(){const N=14,W=S.tx.filter(x=>sod(x.t)>sod(Date.now()-N*864e5));if(!W.length)return `<h1>Analytics</h1><div class="card"><div class="mut">No spends yet. Add your first spend on the Today tab and your charts will appear here.</div></div>`;const tot={};W.forEach(x=>tot[x.c]=(tot[x.c]||0)+x.a);const all=sum(W),R=70,C=2*Math.PI*R;let off=0;
+  const arcs=Object.keys(CAT).map(k=>{const v=tot[k]||0,l=v/all*C,s=`<circle cx="100" cy="100" r="${R}" fill="none" stroke="${CAT[k]}" stroke-width="30" stroke-dasharray="${l} ${C-l}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"/>`;off+=l;return s}).join('');
+  const lgd=Object.keys(CAT).map(k=>`<div class="lg"><i style="background:${CAT[k]}"></i>${k}<b style="margin-left:auto">${fmt(tot[k]||0)} · ${Math.round((tot[k]||0)/all*100)}%</b></div>`).join('');
+  const b=budget();let act=S.salary,ide=S.salary;const pa=[[0,S.salary]],pi=[[0,S.salary]];
+  for(let o=N-1;o>=0;o--){act-=sum(dayTx(o));ide-=b;pa.push([N-o,act]);pi.push([N-o,ide])}
+  const lo=Math.min(...pa.map(p=>p[1]),0),hi=S.salary,X=i=>20+i*(300/N),Y=v=>10+(hi-v)/(hi-lo)*130;
+  const pl=a=>a.map(p=>X(p[0])+','+Y(p[1])).join(' ');
+  const imp=sum(W.filter(x=>x.imp)),need=all-imp;
+  const dd=[];for(let o=N-1;o>=0;o--){const s=sum(dayTx(o));dd.push(`<div class="row" style="font-size:13px;margin:5px 0"><span>${new Date(Date.now()-o*864e5).toLocaleDateString('en-BD',{day:'numeric',month:'short'})}</span><b style="color:${s>b?'var(--red)':'var(--grn)'}">${s>b?'+':'-'}${fmt(s-b)} ${s>b?'over':'saved'}</b></div>`)}
+  return `<h1>Analytics</h1><div class="mut">Last ${N} days · ${fmt(all)} spent</div>
+  <div class="card"><h2>Spend by category</h2><svg viewBox="0 0 200 200" width="190" style="display:block;margin:8px auto">${arcs}<text x="100" y="98" text-anchor="middle" font-size="11" fill="#6b6b7b">TOTAL</text><text x="100" y="118" text-anchor="middle" font-size="18" font-weight="900" fill="#12121a">${fmt(all)}</text></svg>${lgd}</div>
+  <div class="card"><h2>Where did my salary go?</h2><div class="mut">Salary balance vs ideal pace</div><svg viewBox="0 0 340 150" width="100%"><polyline points="${pi.map(p=>X(p[0])+','+Y(p[1])).join(' ')}" fill="none" stroke="#c9c9d6" stroke-width="2" stroke-dasharray="5 4"/><polyline points="${pl(pa)}" fill="none" stroke="#ff4d5e" stroke-width="3.5" stroke-linejoin="round"/></svg>
+  <div class="row mut"><span>— — ideal pace</span><span style="color:var(--red);font-weight:700">━ actual</span></div><div class="big" style="font-size:24px;margin-top:8px;color:var(--red)">${fmt(S.salary-act)} gayeb</div><div class="mut">in ${N} days. Ideal: ${fmt(b*N)}.</div><div style="margin-top:10px">${dd.join('')}</div></div>
+  <div class="card"><h2>Impulse vs Need</h2><div class="bar" style="margin:12px 0"><div style="width:${imp/all*100}%;background:var(--red)"></div><div style="flex:1;background:var(--grn)"></div></div>
+  <div class="row"><span>🔴 Impulse <b>${fmt(imp)}</b></span><span>🟢 Need <b>${fmt(need)}</b></span></div><div class="mut" style="margin-top:8px">${imp>need*.3?'Impulse buys are hurting your budget. Time to ease up!':'Solid discipline! You are focusing on needs.'} Tag karo in Transactions tab.</div></div>`}
+function vPro(){return `<h1>Profile</h1><div class="card" style="text-align:center"><div style="font-size:54px">😎</div><h2>${S.name}</h2><div class="mut">Monthly salary ${fmt(S.salary)} · Daily ${fmt(budget())}</div></div>
+  <div class="card"><div class="mut">Update monthly salary</div><input id="sal" type="number" value="${S.salary}" style="background:#f2f2f7;color:#111;border-color:#e0e0ea"><button class="btn" onclick="S.salary=Math.max(1000,+document.getElementById('sal').value||30000);save();toast('Daily budget is now '+fmt(budget())+' 👍');render()">Save</button></div>
+  <div class="card"><div class="row"><div><b>SMS parser</b><div class="mut">bKash, Nagad, Rocket and bank SMS</div></div><b style="color:var(--grn)">ON</b></div><hr style="border:0;border-top:1px solid var(--line);margin:14px 0"><div class="row"><div><b>9 PM roast notification</b><div class="mut">Daily shame report</div></div><b style="color:var(--grn)">ON</b></div><hr style="border:0;border-top:1px solid var(--line);margin:14px 0"><div class="row"><div><b>Login with Supabase</b><div class="mut">Cloud sync coming soon</div></div><b class="mut">Soon</b></div></div>
+  <button class="btn ghost" onclick="shame()">Preview roast 🔥</button><br><br><button class="btn ghost" onclick="if(confirm('Reset all data?')){try{localStorage.removeItem(KEY)}catch(e){}S=null;step=0;init()}">Reset all data</button>`}
+function vOnb(){if(step===0)return `<div style="padding-top:30px"><div style="font-size:54px">💸</div><h1 style="font-size:38px;margin:10px 0">Salary Gayeb</h1><div style="color:var(--acc);font-weight:800;margin-bottom:26px">Where did my salary go?</div>
+  <div class="mut">Your name</div><input id="nm" placeholder="Your name"><div class="mut">Monthly salary (৳)</div><input id="sl" type="number" value="30000" oninput="document.getElementById('db').textContent=fmt((+this.value||0)/30)">
+  <div class="card"><div class="mut">Your daily budget</div><div class="big" id="db">৳1,000</div><div class="mut">Salary ÷ 30 days. Every taka counts.</div></div><button class="btn" onclick="step=1;S={name:document.getElementById('nm').value||'Friend',salary:+document.getElementById('sl').value||30000};render()">Continue →</button></div>`;
+  return `<div style="padding-top:30px"><div style="font-size:54px">📩</div><h1>Connect your spends</h1><div class="mut" style="margin:8px 0 14px;font-size:14px;line-height:1.5">We read your bank, bKash and Nagad transaction SMS so every spend is tracked automatically. We never touch OTPs or personal chats. Your data stays on your phone.</div>
+  <div class="chips">${['bKash','Nagad','Rocket','DBBL','BRAC Bank','City Bank','Foodpanda','Pathao','Daraz','Chaldal'].map(x=>`<span class="chip">${x}</span>`).join('')}</div>
+  <div class="card"><b>🔒 Mock permission for prototype</b><div class="mut">Real SMS access plugs into parseSmsForAmount() later.</div></div>
+  <button class="btn" onclick="finish()">Allow SMS access</button><br><br><button class="btn ghost" onclick="finish()">Not now, I will add spends manually</button></div>`}
+function finish(){S.tx=[];S.done=1;save();tab='today';render();setTimeout(()=>toast('Welcome! Daily budget: '+fmt(budget())+' 👋','Add your first spend or paste a bank SMS.'),500)}
+function render(){const a=document.getElementById('app');
+  if(!S||!S.done){a.innerHTML=vOnb();return}
+  const v={today:vToday,tx:vTx,an:vAn,pro:vPro}[tab]();
+  const nb=[['today','🏠','Today'],['tx','🧾','Transactions'],['an','📊','Analytics'],['pro','👤','Profile']];
+  a.innerHTML=v+`<nav>${nb.map(n=>`<button class="${tab===n[0]?'on':''}" onclick="tab='${n[0]}';render();scrollTo(0,0)"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>`}
+function init(){load();if(S&&S.done&&!S.tx)S=null;render();
+  if(S&&S.done){const k=new Date().toDateString();if(new Date().getHours()>=21&&S.last!==k&&sum(dayTx(0))>0){S.last=k;save();setTimeout(shame,800)}}}
+init();
+</script></body></html>
